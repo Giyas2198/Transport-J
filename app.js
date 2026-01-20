@@ -2270,90 +2270,110 @@ window.verifyAndClose = async function(docId) {
 // ==========================================
 // MODULE: OPS CONTROL (SCANNER & TRACKING)
 // ==========================================
+// ==========================================
+// MODULE: OPS CONTROL (UI ADMIN)
+// ==========================================
 window.loadOpsControl = async function() {
     const container = document.getElementById('view-ops-control');
+    if (!container) return;
     
+    // 1. Render Tampilan Mobile-Friendly
     container.innerHTML = `
-        <div class="flex flex-col h-full">
-            <div class="flex justify-between items-center mb-6">
-                <div>
-                    <h2 class="text-2xl font-bold text-slate-800">Operational Control (Gate)</h2>
-                    <p class="text-sm text-slate-500">Monitor Gate In & Stuffing. Scan barcode untuk memindahkan status.</p>
-                </div>
-                <button onclick="openScanner()" class="bg-slate-800 hover:bg-black text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 transition-transform active:scale-95 animate-pulse">
-                    <i class="fa-solid fa-qrcode text-xl"></i> 
-                    <span class="text-sm font-bold">SCAN SURAT JALAN</span>
+        <div class="flex flex-col h-full max-w-2xl mx-auto">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6 text-center">
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Gate Control</h2>
+                <p class="text-sm text-slate-500 mb-6">Gunakan kamera HP untuk scan QR Code Driver.</p>
+                
+                <button onclick="openScanner()" class="w-full bg-slate-800 hover:bg-black text-white p-6 rounded-2xl shadow-xl shadow-slate-300/50 flex items-center justify-center gap-4 transition-transform active:scale-95 group cursor-pointer">
+                    <div class="bg-white/10 p-4 rounded-full group-hover:bg-white/20 transition">
+                        <i class="fa-solid fa-qrcode text-3xl"></i>
+                    </div>
+                    <div class="text-left">
+                        <span class="block text-xs text-slate-400 uppercase font-bold tracking-wider">Tap to Scan</span>
+                        <span class="block text-xl font-bold">SCAN SURAT JALAN</span>
+                    </div>
                 </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 overflow-y-auto pb-10">
+            <div class="flex-1 overflow-y-auto pb-20 space-y-4">
+                <div class="flex justify-between items-end px-2">
+                    <h3 class="font-bold text-slate-700">Truk di Lokasi (Aktif)</h3>
+                    <button onclick="loadOpsControl()" class="text-xs text-blue-600 font-bold hover:underline">
+                        <i class="fa fa-sync"></i> Refresh
+                    </button>
+                </div>
                 
-                <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-4 flex flex-col h-full">
-                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-blue-200">
-                        <span class="font-bold text-blue-800 flex items-center gap-2">
-                            <i class="fa fa-dungeon"></i> Gate In (Security)
-                        </span>
-                        <span id="count-gate-in" class="bg-white px-2 py-0.5 rounded text-xs font-bold text-blue-600 shadow-sm">0</span>
+                <div id="active-trucks-list" class="space-y-3 min-h-[200px]">
+                    <div class="text-center py-10 text-slate-400">
+                        <i class="fa fa-circle-notch fa-spin text-2xl mb-2"></i><br>Memuat data...
                     </div>
-                    <div id="list-gate-in" class="space-y-3 flex-1 overflow-y-auto pr-2"></div>
                 </div>
-
-                <div class="bg-amber-50/50 border border-amber-200 rounded-xl p-4 flex flex-col h-full">
-                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-amber-200">
-                        <span class="font-bold text-amber-800 flex items-center gap-2">
-                            <i class="fa fa-boxes-packing"></i> Stuffing Process
-                        </span>
-                        <span id="count-stuffing" class="bg-white px-2 py-0.5 rounded text-xs font-bold text-amber-600 shadow-sm">0</span>
-                    </div>
-                    <div id="list-stuffing" class="space-y-3 flex-1 overflow-y-auto pr-2"></div>
-                </div>
-
             </div>
         </div>
     `;
 
-    // Ambil data yang statusnya 'gate_in' ATAU 'stuffing'
-    const snapshot = await db.collection('delivery_planning')
-        .where('status', 'in', ['gate_in', 'stuffing']) 
-        .get();
+    try {
+        // 2. Ambil data truk yang statusnya 'gate_in' ATAU 'stuffing'
+        const snapshot = await db.collection('delivery_planning')
+            .where('status', 'in', ['gate_in', 'stuffing']) 
+            .orderBy('gateInTime', 'desc') // Urutkan dari yang baru masuk
+            .get();
 
-    let countGateIn = 0;
-    let countStuffing = 0;
+        const list = document.getElementById('active-trucks-list');
+        list.innerHTML = '';
 
-    snapshot.forEach(doc => {
-        const d = doc.data();
-        
-        const card = `
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition cursor-pointer relative overflow-hidden group">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <span class="font-mono font-bold text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">${d.assignedPlate || '?'}</span>
-                        <div class="font-bold text-slate-800 text-sm mt-2">${d.vendor}</div>
-                        <div class="text-xs text-slate-500">Cust: ${d.customer}</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-[10px] font-bold text-slate-400 mb-1">Shipment No</div>
-                        <div class="font-mono text-xs font-bold text-slate-700">${d.shipmentNo}</div>
-                    </div>
-                </div>
-                <div class="mt-3 pt-3 border-t border-dashed border-slate-100 flex justify-between items-center text-xs">
-                   <span class="text-slate-400"><i class="fa fa-clock mr-1"></i> ${new Date(d.orderAcceptedTime?.seconds * 1000).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</span>
-                   <span class="font-bold text-slate-300 group-hover:text-blue-500 transition">Scan untuk update <i class="fa fa-arrow-right ml-1"></i></span>
-                </div>
-            </div>
-        `;
-
-        if(d.status === 'gate_in') { 
-            document.getElementById('list-gate-in').innerHTML += card; 
-            countGateIn++;
-        } else if(d.status === 'stuffing') {
-            document.getElementById('list-stuffing').innerHTML += card;
-            countStuffing++;
+        if(snapshot.empty) {
+            list.innerHTML = `
+                <div class="text-center p-8 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-slate-400">
+                    <i class="fa-solid fa-truck-ramp-box text-3xl mb-3 opacity-30"></i>
+                    <p class="text-sm">Tidak ada truk di dalam pabrik saat ini.</p>
+                </div>`;
+            return;
         }
-    });
 
-    document.getElementById('count-gate-in').innerText = countGateIn;
-    document.getElementById('count-stuffing').innerText = countStuffing;
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            
+            // Tentukan Badge Status & Warna
+            let badgeHTML = '';
+            let borderClass = '';
+            
+            if (d.status === 'gate_in') {
+                badgeHTML = `<span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold border border-amber-200"><i class="fa fa-clock mr-1"></i> MENUNGGU MUAT</span>`;
+                borderClass = 'border-l-4 border-l-amber-400';
+            } else {
+                badgeHTML = `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold border border-blue-200"><i class="fa fa-box-open mr-1"></i> PROSES MUAT</span>`;
+                borderClass = 'border-l-4 border-l-blue-500';
+            }
+
+            // Format Jam Masuk
+            const timeString = d.gateInTime ? new Date(d.gateInTime.seconds * 1000).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) : '-';
+
+            list.innerHTML += `
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center ${borderClass}">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-mono font-bold text-sm bg-slate-800 text-white px-2 py-0.5 rounded">${d.assignedPlate || '?'}</span>
+                            ${badgeHTML}
+                        </div>
+                        <div class="text-sm font-bold text-slate-700">${d.vendor}</div>
+                        <div class="text-xs text-slate-500 flex items-center gap-1">
+                            <i class="fa fa-user text-[10px]"></i> ${d.customer}
+                        </div>
+                    </div>
+                    <div class="text-right pl-2 border-l border-slate-100">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold">Gate In</div>
+                        <div class="font-mono text-lg font-bold text-slate-700 leading-none mt-1">
+                            ${timeString}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    } catch (e) {
+        console.error(e);
+        document.getElementById('active-trucks-list').innerHTML = `<div class="text-center text-red-500 text-sm">Gagal memuat data.</div>`;
+    }
 };
 
 // Helper Warna
@@ -2372,139 +2392,190 @@ function getStatusColor(status) {
 // ==========================================
 
 // Variable global scanner
+// ==========================================
+// MODULE: SMART SCANNER SYSTEM (CAMERA)
+// ==========================================
 let html5QrcodeScanner = null;
 
-// 1. FUNGSI MEMBUKA KAMERA
+// A. FUNGSI MEMBUKA KAMERA
 window.openScanner = function() {
+    // Cek support browser
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return Swal.fire('Error Kamera', 'Browser ini tidak mendukung akses kamera. Pastikan menggunakan HTTPS atau localhost.', 'error');
+    }
+
     Swal.fire({
-        title: 'Scan QR Code Driver',
+        title: 'Scan QR Surat Jalan',
         html: `
-            <div id="reader" style="width: 100%; min-height: 250px;"></div>
-            <p class="text-xs text-slate-500 mt-2">Arahkan kamera ke salah satu QR Code Driver</p>
+            <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;"></div>
+            <p class="text-xs text-slate-500 mt-3"><i class="fa fa-lightbulb text-amber-500"></i> Arahkan kamera ke QR Code Driver</p>
         `,
         showConfirmButton: false, 
         showCloseButton: true,
         width: 600,
-        willOpen: () => {
-            // Inisialisasi Library HTML5-QRCode
-            // Ini akan otomatis memicu browser meminta izin kamera
+        didOpen: () => {
+            // Config Scanner
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader", 
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                false
+                { 
+                    fps: 10, 
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    disableFlip: false 
+                },
+                /* verbose= */ false
             );
-            // Render Kamera
-            html5QrcodeScanner.render(onScanSuccess, (error) => { /* ignore errors */ });
+            
+            // Mulai Render Kamera
+            html5QrcodeScanner.render(onScanSuccess, (errorMessage) => {
+                // Error scanning frame biasa (ignore agar console bersih)
+            });
         },
         willClose: () => {
-            // Matikan kamera saat popup ditutup agar hemat baterai/resource
+            // MATIKAN KAMERA SAAT POPUP DITUTUP (PENTING!)
             if (html5QrcodeScanner) {
-                html5QrcodeScanner.clear();
+                html5QrcodeScanner.clear().catch(err => console.error("Gagal stop kamera", err));
             }
         }
     });
 };
 
-// 2. LOGIKA KETIKA QR BERHASIL DI-SCAN
+// B. LOGIKA SAAT QR BERHASIL DI-SCAN
 async function onScanSuccess(decodedText, decodedResult) {
-    // Stop scanning sebentar agar tidak double scan
+    // 1. Stop scanner & Tutup Popup
     if (html5QrcodeScanner) {
-        html5QrcodeScanner.clear();
-        Swal.close(); // Tutup popup kamera
+        await html5QrcodeScanner.clear();
+        Swal.close();
     }
 
-    // Tampilkan Loading
-    Swal.fire({ title: 'Memproses QR...', didOpen: () => Swal.showLoading() });
+    // 2. Tampilkan Loading
+    Swal.fire({
+        title: 'Memproses QR...',
+        html: 'Sedang memvalidasi data ke server...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
 
     try {
-        // DECODE FORMAT: "AKSI|DOC_ID"
-        // Contoh: "GATE_IN|7dh38djs93"
+        console.log("Hasil Scan:", decodedText);
+
+        // 3. PARSING DATA QR (Format: AKSI|ID_DOKUMEN)
+        // Contoh: GATE_IN|7dh38djs93
         const parts = decodedText.split('|');
         
         if (parts.length !== 2) {
-            throw new Error("Format QR Code tidak valid! Pastikan scan QR dari aplikasi Logistics OS.");
+            throw new Error("QR Code tidak valid! Pastikan scan QR resmi dari aplikasi.");
         }
 
-        const action = parts[0]; // GATE_IN, STUFFING, atau GATE_OUT
-        const docId = parts[1];  // ID Dokumen Firebase
+        const action = parts[0].toUpperCase(); // GATE_IN, STUFFING, GATE_OUT
+        const docId = parts[1];
 
-        // Ambil Data Order dari Firebase
+        // 4. AMBIL DATA ORDER DARI DATABASE
         const docRef = db.collection('delivery_planning').doc(docId);
         const docSnap = await docRef.get();
 
-        if (!docSnap.exists) throw new Error("Data Order tidak ditemukan.");
-        
-        const d = docSnap.data();
+        if (!docSnap.exists) {
+            throw new Error("Data Order tidak ditemukan di database.");
+        }
+
+        const data = docSnap.data();
         let updates = {};
-        let successMessage = '';
+        let successTitle = "";
+        let successMsg = "";
 
-        // --- VALIDASI ALUR (MENCEGAH LONCAT PROSES) ---
+        // 5. VALIDASI ALUR & LOGIKA STATUS
+        // Mencegah loncat proses (misal: belum masuk kok sudah keluar)
 
-        // SKENARIO 1: SCAN QR GATE IN
+        // --- SKENARIO 1: GATE IN (Security Depan) ---
         if (action === 'GATE_IN') {
-            if (d.status === 'gate_in') throw new Error("Truk ini SUDAH check-in sebelumnya.");
-            if (d.status !== 'ready_gate_in') throw new Error("Truk belum status 'Ready'. Hubungi Vendor.");
+            // Cek status saat ini
+            if (data.status === 'gate_in') throw new Error("Truk ini SUDAH Check-In sebelumnya.");
+            if (data.status === 'stuffing') throw new Error("Truk sedang proses muat (Sudah lewat Gate In).");
+            if (data.status === 'transit') throw new Error("Truk sudah jalan (Sudah selesai).");
             
+            // Status harus 'ready_gate_in' (Vendor sudah terima order)
+            if (data.status !== 'ready_gate_in') {
+                throw new Error("Status truk belum Ready. Hubungi Vendor untuk Accept Order.");
+            }
+
             updates = { 
                 status: 'gate_in', 
                 gateInTime: firebase.firestore.FieldValue.serverTimestamp() 
             };
-            successMessage = `Gate In Berhasil!<br>Silakan masuk ke Loading Dock.`;
+            successTitle = "GATE IN BERHASIL";
+            successMsg = "Silakan arahkan truk ke Loading Dock.";
         }
 
-        // SKENARIO 2: SCAN QR STUFFING (GUDANG)
+        // --- SKENARIO 2: STUFFING (Staff Gudang) ---
         else if (action === 'STUFFING') {
-            if (d.status === 'stuffing') throw new Error("Sedang proses stuffing.");
-            if (d.status !== 'gate_in') throw new Error("Truk belum Gate In! Harap scan di Security dulu.");
+            if (data.status === 'stuffing') throw new Error("Proses stuffing sedang berjalan.");
+            if (data.status === 'transit') throw new Error("Truk sudah selesai muat dan jalan.");
             
+            // Harus sudah Gate In
+            if (data.status !== 'gate_in') {
+                throw new Error("Truk belum scan Gate In di Security depan!");
+            }
+
             updates = { 
                 status: 'stuffing', 
                 stuffingTime: firebase.firestore.FieldValue.serverTimestamp() 
             };
-            successMessage = `Status Update: STUFFING.<br>Mulai proses muat barang.`;
+            successTitle = "MULAI MUAT (STUFFING)";
+            successMsg = "Waktu mulai tercatat. Silakan proses muat barang.";
         }
 
-        // SKENARIO 3: SCAN QR GATE OUT (KELUAR)
+        // --- SKENARIO 3: GATE OUT (Security Keluar) ---
         else if (action === 'GATE_OUT') {
-            if (d.status === 'transit') throw new Error("Truk sudah jalan (Gate Out).");
-            if (d.status !== 'stuffing') throw new Error("Proses muat belum selesai/dimulai.");
+            if (data.status === 'transit') throw new Error("Truk sudah tercatat keluar (Gate Out).");
             
+            // Harus sudah Stuffing (atau Gate In minimal)
+            if (data.status !== 'stuffing' && data.status !== 'gate_in') {
+                throw new Error("Truk belum melakukan proses muat!");
+            }
+
             updates = { 
                 status: 'transit', // Status berubah jadi TRANSIT (OTW)
                 gateOutTime: firebase.firestore.FieldValue.serverTimestamp() 
             };
-            successMessage = `Gate Out Berhasil!<br>Truk status: <b>IN TRANSIT</b>`;
+            successTitle = "GATE OUT SUKSES";
+            successMsg = "Truk status: IN TRANSIT. Hati-hati di jalan!";
         } 
         
         else {
-            throw new Error("QR Code tidak dikenali oleh sistem ini.");
+            throw new Error("Tipe QR Code tidak dikenali: " + action);
         }
 
-        // --- EKSEKUSI UPDATE DATABASE ---
+        // 6. UPDATE KE FIREBASE
         await docRef.update(updates);
 
-        // Notifikasi Sukses
+        // 7. NOTIFIKASI SUKSES
         await Swal.fire({
             icon: 'success',
-            title: 'Scan Sukses!',
-            html: `<b>${d.assignedPlate}</b><br>${successMessage}`,
+            title: successTitle,
+            html: `
+                <div class="text-center">
+                    <div class="text-4xl mb-3">🚛</div>
+                    <h3 class="font-bold text-xl text-slate-800">${data.assignedPlate || 'TRUK'}</h3>
+                    <p class="text-sm text-slate-500 mt-2">${successMsg}</p>
+                </div>
+            `,
             timer: 3000,
             showConfirmButton: false
         });
 
-        // Refresh Halaman Ops Control Admin
-        if (typeof loadOpsControl === "function") {
-            loadOpsControl();
-        }
+        // 8. Refresh Halaman Admin (Ops Control)
+        loadOpsControl();
 
     } catch (err) {
+        // Handle Error
         Swal.fire({
             icon: 'error',
-            title: 'Scan Gagal',
+            title: 'Gagal Scan',
             text: err.message,
-            confirmButtonText: 'Scan Ulang'
+            confirmButtonText: 'Coba Lagi',
+            confirmButtonColor: '#d33'
         }).then((result) => {
-            // Buka scanner lagi jika user klik Scan Ulang
+            // Jika user klik coba lagi, buka scanner
             if (result.isConfirmed) {
                 openScanner();
             }
