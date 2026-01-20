@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Vendor Performa - Logistics OS</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --white: #ffffff;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 30px;
+        }
+
+        /* HEADER STYLE */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 35px;
+        }
+
+        .header h2 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #1e293b, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #searchInput {
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            width: 280px;
+            outline: none;
+            font-size: 14px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        #searchInput:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        /* GRID SYSTEM */
+        .vendor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        /* === CARD DESIGN BARU === */
+        .vendor-item {
+            background: var(--white);
+            border-radius: 20px;
+            padding: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #f1f5f9;
+        }
+
+        .vendor-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border-color: #bfdbfe;
+        }
+
+        .main-info {
+            flex-grow: 1;
+        }
+
+        .vendor-name {
+            font-weight: 700;
+            font-size: 14px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        /* STYLE ANGKA RITASE BESAR */
+        .ritase-wrapper {
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+        }
+
+        .ritase-big {
+            font-size: 42px; /* Diperbesar drastis */
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1;
+        }
+
+        .ritase-label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
+        .sparkline-container {
+            width: 120px;
+            height: 40px;
+            margin-top: 10px;
+        }
+
+        /* === STYLE MEDALI SKOR BARU (BULAT) === */
+        .score-badge {
+            width: 75px;  /* Lebar lingkaran */
+            height: 75px; /* Tinggi lingkaran */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%; /* Membuat bulat sempurna */
+            font-weight: 800;
+            font-size: 26px; /* Font angka di dalam medali */
+            margin-left: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border: 3px solid #fff;
+            position: relative;
+        }
+
+        /* Warna Status */
+        .high { 
+            background: linear-gradient(135deg, #dcfce7, #4ade80); 
+            color: #064e3b; 
+        }
+        .med { 
+            background: linear-gradient(135deg, #fef3c7, #fbbf24); 
+            color: #78350f; 
+        }
+        .low { 
+            background: linear-gradient(135deg, #fee2e2, #f87171); 
+            color: #7f1d1d; 
+        }
+
+        #loading { text-align: center; margin-top: 50px; color: #64748b; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>Vendor Performance</h2>
+        <input type="text" id="searchInput" placeholder="Cari Vendor..." onkeyup="filterVendor()">
+    </div>
+
+    <div id="loading"><i class="fas fa-spinner fa-spin"></i> Memuat data performa...</div>
+    <div class="vendor-grid" id="vendorGrid"></div>
+
+    <script>
+        // Gunakan Config Firebase yang sama dengan app.js
+        const firebaseConfig = {
+            apiKey: "AIzaSyAQ9cA0_Emq_EioTTEEec8RDMhcBZqQwQc",
+            authDomain: "vibrasi-50f4e.firebaseapp.com",
+            projectId: "vibrasi-50f4e",
+            storageBucket: "vibrasi-50f4e.firebasestorage.app",
+            messagingSenderId: "886692239716",
+            appId: "1:886692239716:web:25da3b7bfad5dafb3d8271"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // 1. Ambil Data
+        async function loadDashboard() {
+            try {
+                // Ambil data ritase (dummy/real)
+                // Di sini kita simulasi data agar terlihat
+                const snapshot = await db.collection('daily_logs').get(); // Sesuaikan nama collection
+                
+                // --- SIMULASI DATA VENDOR (Karena data log mungkin kosong) ---
+                // Kita buat data dummy cerdas berdasarkan input user sebelumnya
+                const vendors = [
+                    { name: "PT SINAR LOGISTIK", ritase: 142, score: 9.8, trend: [5, 8, 12, 15, 20] },
+                    { name: "CV MAJU JAYA", ritase: 89, score: 8.5, trend: [10, 8, 8, 9, 7] },
+                    { name: "TRANSINDO UTAMA", ritase: 234, score: 9.2, trend: [15, 20, 25, 30, 45] },
+                    { name: "BERKAH ABADI", ritase: 45, score: 6.4, trend: [8, 7, 5, 4, 2] },
+                    { name: "LOGISTIK EXPRESS", ritase: 112, score: 7.8, trend: [10, 12, 11, 13, 15] },
+                ];
+
+                renderCards(vendors);
+
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById('loading').innerHTML = "Terjadi kesalahan saat memuat data.";
+            }
+        }
+
+        // 2. Render Kartu (DIPERBARUI STRUKTURNYA)
+        function renderCards(data) {
+            const grid = document.getElementById('vendorGrid');
+            grid.innerHTML = "";
+            document.getElementById('loading').style.display = "none";
+
+            data.forEach((v, index) => {
+                const canvasId = `chart-${index}`;
+                
+                // Tentukan Warna Badge
+                let badgeClass = "low";
+                if(v.score >= 9) badgeClass = "high";
+                else if(v.score >= 7.5) badgeClass = "med";
+
+                // HTML Structure Baru yang cocok dengan CSS Baru
+                const html = `
+                    <div class="vendor-item" onclick="showVendorDetail('${v.name}')">
+                        <div class="main-info">
+                            <span class="vendor-name">${v.name}</span>
+                            
+                            <div class="ritase-wrapper">
+                                <span class="ritase-big">${v.ritase}</span>
+                                <span class="ritase-label">Rit</span>
+                            </div>
+
+                            <div class="sparkline-container">
+                                <canvas id="${canvasId}"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="score-badge ${badgeClass}">
+                            ${v.score}
+                        </div>
+                    </div>
+                `;
+
+                grid.innerHTML += html;
+
+                // Render Grafik Kecil
+                setTimeout(() => {
+                    renderMiniChart(canvasId, v.trend);
+                }, 100);
+            });
+        }
+
+        // 3. Render Mini Chart (Sparkline)
+        function renderMiniChart(id, dataPoints) {
+            const ctx = document.getElementById(id).getContext('2d');
+            
+            // Warna Line berdasarkan trend (naik/turun)
+            const isUp = dataPoints[dataPoints.length - 1] >= dataPoints[0];
+            const color = isUp ? '#10b981' : '#f59e0b'; // Hijau jika naik, Kuning jika turun
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['1', '2', '3', '4', '5'],
+                    datasets: [{
+                        data: dataPoints,
+                        borderColor: color,
+                        borderWidth: 2,
+                        tension: 0.4, // Melengkung halus
+                        pointRadius: 0, // Hilangkan titik
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { display: false }, y: { display: false } },
+                    layout: { padding: 0 }
+                }
+            });
+        }
+
+        // 4. Detail Vendor
+        function showVendorDetail(name) {
+            Swal.fire({
+                title: name,
+                text: 'Detail performa lengkap akan muncul di sini.',
+                icon: 'info',
+                confirmButtonColor: '#2563eb'
+            });
+        }
+
+        // 5. Filter Pencarian
+        function filterVendor() {
+            const val = document.getElementById('searchInput').value.toLowerCase();
+            const items = document.getElementsByClassName('vendor-item');
+            
+            for (let item of items) {
+                const name = item.querySelector('.vendor-name').innerText.toLowerCase();
+                item.style.display = name.includes(val) ? "flex" : "none";
+            }
+        }
+
+        window.onload = loadDashboard;
+    </script>
+</body>
+</html>

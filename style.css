@@ -1,0 +1,268 @@
+:root {
+    --primary: #3b82f6; /* Lebih cerah untuk glass */
+    --primary-glass: rgba(59, 130, 246, 0.8);
+    --text-dark: #1e293b;
+    --text-light: #f8fafc;
+    --glass-border: 1px solid rgba(255, 255, 255, 0.3);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    /* Background Gradient Mesh agar efek kaca terlihat */
+    background: 
+        radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+        radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+        radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+    background-color: #0f172a; /* Fallback dark */
+    background-attachment: fixed;
+    background-size: cover;
+    color: var(--text-dark);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* SIDEBAR STYLE (Dark Glass) */
+.sidebar {
+    width: 260px;
+    background: rgba(15, 23, 42, 0.65); /* Transparan gelap */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.sidebar-header {
+    padding: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.sidebar-header h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+.logo-icon { font-size: 24px; color: #60a5fa; text-shadow: 0 0 10px rgba(96, 165, 250, 0.5); }
+.badge-pro { 
+    background: linear-gradient(135deg, #f59e0b, #d97706); 
+    color: white; 
+    font-size: 9px; padding: 3px 8px; border-radius: 6px; font-weight: 800; 
+    box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
+}
+
+.nav-links { list-style: none; padding: 20px 10px; margin: 0; }
+.nav-links li {
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    color: #cbd5e1;
+    font-weight: 500;
+    display: flex; align-items: center; gap: 10px;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+.nav-links li:hover { 
+    background: rgba(255,255,255,0.1); 
+    color: white; 
+    transform: translateX(5px);
+}
+.nav-links li.active { 
+    background: rgba(59, 130, 246, 0.25); /* Biru transparan */
+    color: #60a5fa; 
+    font-weight: 600; 
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+}
+
+/* MAIN CONTENT */
+.main-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    position: relative;
+    /* Main content area juga diberi sedikit overlay agar tulisan terbaca */
+    background: rgba(255, 255, 255, 0.02); 
+}
+
+.page-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 30px;
+    color: white; /* Judul halaman jadi putih agar kontras dengan bg gelap */
+}
+
+/* GLASS BUTTON */
+.btn-primary {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 10px 20px; border-radius: 12px;
+    cursor: pointer; font-weight: 600; font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+    transition: all 0.3s;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.btn-primary:hover { 
+    background: var(--primary); 
+    border-color: var(--primary);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+}
+
+/* GENERAL GLASS CARD (Re-usable) */
+.stat-card, .vendor-item, .kanban-column, .view-section > div > div {
+    background: rgba(255, 255, 255, 0.75) !important; /* Light Glass */
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6) !important;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1) !important;
+    border-radius: 16px !important;
+}
+
+/* DASHBOARD STATS */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+    padding: 0 30px;
+}
+
+.stat-card {
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s;
+}
+.stat-card:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.85) !important; }
+
+.stat-value { font-size: 32px; font-weight: 800; color: #1e293b; margin: 5px 0; }
+.stat-label { font-size: 13px; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+.stat-icon {
+    position: absolute; right: -10px; bottom: -10px;
+    font-size: 90px; opacity: 0.1; transform: rotate(-15deg); color: var(--primary);
+}
+
+/* VENDOR ITEM */
+.vendor-item {
+    padding: 20px;
+    transition: all 0.3s;
+    margin-bottom: 10px; /* Spacer jika dalam list */
+    cursor: pointer;
+}
+.vendor-item:hover {
+    transform: scale(1.02);
+    border-color: white !important;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+}
+
+/* --- KANBAN BOARD (GLASS STYLE) --- */
+.kanban-board {
+    display: flex; gap: 20px;
+    overflow-x: auto;
+    height: calc(100vh - 120px);
+    padding: 0 30px 30px 30px;
+    /* Custom Scrollbar untuk horizontal */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+.kanban-column {
+    flex: 1; min-width: 280px; max-width: 350px;
+    display: flex; flex-direction: column;
+    background: rgba(255, 255, 255, 0.5) !important; /* Kolom sedikit lebih transparan */
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+}
+
+.column-header {
+    padding: 18px;
+    font-weight: 700; font-size: 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.4); /* Header kolom sedikit lebih putih */
+}
+
+/* Warna Header Status (Glassy version) */
+.header-pending { color: #991b1b; }
+.header-scheduled { color: #92400e; }
+.header-transit { color: #1e40af; }
+.header-done { color: #166534; }
+
+.count-badge {
+    background: rgba(255,255,255,0.8);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    padding: 3px 10px; border-radius: 20px; font-size: 11px;
+}
+
+.kanban-body {
+    padding: 15px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+/* Kanban Card (Card di atas Card) */
+.kanban-card {
+    background: rgba(255, 255, 255, 0.9); /* Card lebih solid agar terbaca */
+    padding: 18px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    border: 1px solid white;
+    position: relative;
+    transition: transform 0.2s;
+}
+.kanban-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.card-title { font-weight: 700; font-size: 15px; color: #1e293b; display: block; margin-bottom: 6px; }
+.card-info { font-size: 12px; color: #64748b; display: block; margin-bottom: 10px; }
+
+.vendor-tag {
+    display: inline-block; 
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+    padding: 4px 10px; border-radius: 6px; 
+    font-size: 11px; font-weight: 700;
+}
+
+.card-actions {
+    margin-top: 12px; padding-top: 12px; border-top: 1px dashed #cbd5e1;
+    display: flex; justify-content: space-between; align-items: center;
+}
+
+.btn-action {
+    background: white; border: 1px solid #e2e8f0;
+    padding: 6px 12px; border-radius: 8px; font-size: 11px; 
+    cursor: pointer; color: #475569; font-weight: 600;
+    transition: all 0.2s;
+}
+.btn-action:hover { background: #f8fafc; color: var(--primary); border-color: var(--primary); }
+
+/* INPUT FIELDS (Glassy) */
+input[type="text"], textarea {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    padding: 10px; border-radius: 8px;
+    outline: none; width: 100%; box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+    transition: 0.3s;
+}
+input[type="text"]:focus, textarea:focus {
+    background: white;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* SCROLLBAR CUSTOMIZATION */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }

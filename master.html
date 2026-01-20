@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Data Management | Logistics OS</title>
+    
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+    
+    <style>
+        /* === STYLE UTAMA === */
+        body {
+            background-color: #f8fafc;
+            padding: 20px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .container {
+            max-width: 1100px; /* Diperlebar agar tabel muat */
+            margin: 0 auto;
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        /* Header & Navigasi */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .tab-container { display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; }
+        .tab-btn { padding: 12px 24px; background: none; border: none; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; }
+        .tab-btn.active { color: #2563eb; border-bottom: 2px solid #2563eb; }
+        
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+
+        .btn-add { background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .search-box { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; width: 250px; }
+
+        /* Tabel Data */
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        .data-table th { text-align: left; padding: 12px; background: #f1f5f9; border-bottom: 2px solid #e2e8f0; color: #475569; }
+        .data-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+        .data-table tr:hover { background-color: #f8fafc; }
+        
+        /* Badges & Text Style */
+        .text-price { font-family: 'Consolas', monospace; font-weight: 600; color: #0f172a; }
+        .badge-area { background: #eff6ff; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: inline-block; }
+
+        /* === MODAL STYLE === */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 9999; 
+            left: 0; top: 0;
+            width: 100%; height: 100%; 
+            background-color: rgba(0,0,0,0.6);
+            backdrop-filter: blur(2px);
+            overflow: auto; /* Agar bisa discroll jika layar kecil */
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto; 
+            padding: 24px;
+            border: 1px solid #888;
+            width: 450px;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: #000; }
+        
+        /* Form Inputs */
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #334155; font-size: 14px; }
+        .form-group input {
+            width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; 
+            font-size: 14px; box-sizing: border-box;
+        }
+        .input-currency { text-align: right; } /* Angka rata kanan */
+        
+        .btn-save {
+            width: 100%; background: #0f172a; color: white; padding: 12px; border: none; 
+            border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
+        .btn-save:hover { background: #1e293b; }
+        .btn-icon { background:none; border:none; cursor:pointer; font-size:16px; color:#94a3b8; transition: color 0.2s; }
+        .btn-icon:hover { color: #ef4444; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="page-header">
+            <h2><i class="fas fa-database" style="color:#2563eb;"></i> Master Data</h2>
+            <button onclick="window.history.back()" style="background:none; border:none; cursor:pointer; color:#64748b;">
+                <i class="fas fa-arrow-left"></i> Kembali
+            </button>
+        </div>
+
+        <div class="tab-container">
+            <button class="tab-btn active" onclick="openTab(event, 'sectionVendor')">Data Vendor</button>
+            <button class="tab-btn" onclick="openTab(event, 'sectionCustomer')">Data Customer</button>
+        </div>
+
+        <div id="sectionVendor" class="content-section active">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                <input type="text" class="search-box" id="searchVendor" onkeyup="filterTable('vendorTable', 'searchVendor')" placeholder="Cari Vendor...">
+                <button class="btn-add" onclick="openModal('vendorModal')">
+                    <i class="fas fa-plus"></i> Tambah Vendor
+                </button>
+            </div>
+            
+            <table class="data-table" id="vendorTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30%;">Nama Vendor</th>
+                        <th style="width: 25%;">Harga Oncall (Trip)</th>
+                        <th style="width: 25%;">Harga Contract (Tetap)</th>
+                        <th style="width: 10%;">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+
+        <div id="sectionCustomer" class="content-section">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                <input type="text" class="search-box" id="searchCustomer" onkeyup="filterTable('customerTable', 'searchCustomer')" placeholder="Cari Customer...">
+                <button class="btn-add" onclick="openModal('customerModal')">
+                    <i class="fas fa-plus"></i> Tambah Customer
+                </button>
+            </div>
+            
+            <table class="data-table" id="customerTable">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Nama Customer</th>
+                        <th style="width: 40%;">Area Wilayah</th>
+                        <th style="width: 20%;">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="vendorModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('vendorModal')">&times;</span>
+            <h3>Tambah Vendor Baru</h3>
+            
+            <div class="form-group">
+                <label>Nama Vendor</label>
+                <input type="text" id="inputVendorName" placeholder="Contoh: PT Logistics Jeje">
+            </div>
+            
+            <div style="display: flex; gap: 15px;">
+                <div class="form-group" style="flex:1;">
+                    <label>Harga Oncall (Per Trip)</label>
+                    <input type="number" id="inputPriceOncall" class="input-currency" placeholder="0">
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Harga Contract (Tetap)</label>
+                    <input type="number" id="inputPriceContract" class="input-currency" placeholder="0">
+                </div>
+            </div>
+            
+            <button class="btn-save" onclick="saveVendor()">Simpan Vendor</button>
+        </div>
+    </div>
+
+    <div id="customerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('customerModal')">&times;</span>
+            <h3>Tambah Customer Baru</h3>
+            
+            <div class="form-group">
+                <label>Nama Customer</label>
+                <input type="text" id="inputCustomerName" placeholder="Contoh: CV Jos">
+            </div>
+            
+            <div class="form-group">
+                <label>Area Wilayah</label>
+                <input type="text" id="inputCustomerArea" placeholder="Contoh: Semarang, Jawa Tengah">
+            </div>
+            
+            <button class="btn-save" onclick="saveCustomer()">Simpan Customer</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. CONFIG FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAQ9cA0_Emq_EioTTEEec8RDMhcBZqQwQc",
+            authDomain: "vibrasi-50f4e.firebaseapp.com",
+            projectId: "vibrasi-50f4e",
+            storageBucket: "vibrasi-50f4e.firebasestorage.app",
+            messagingSenderId: "886692239716",
+            appId: "1:886692239716:web:25da3b7bfad5dafb3d8271"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // --- 2. HELPERS (Format Rupiah) ---
+        const formatRupiah = (number) => {
+            return new Intl.NumberFormat('id-ID', { 
+                style: 'currency', 
+                currency: 'IDR',
+                minimumFractionDigits: 0 
+            }).format(number);
+        };
+
+        // --- 3. UI FUNCTIONS ---
+        window.openTab = function(evt, tabName) {
+            let i, content, tabs;
+            content = document.getElementsByClassName("content-section");
+            for (i = 0; i < content.length; i++) content[i].style.display = "none";
+            tabs = document.getElementsByClassName("tab-btn");
+            for (i = 0; i < tabs.length; i++) tabs[i].className = tabs[i].className.replace(" active", "");
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        };
+
+        window.openModal = function(id) {
+            document.getElementById(id).style.display = "block";
+        };
+
+        window.closeModal = function(id) {
+            document.getElementById(id).style.display = "none";
+        };
+        
+        // Klik luar modal untuk menutup
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = "none";
+            }
+        };
+
+        // --- 4. LOGIKA VENDOR (SIMPAN & LOAD HARGA) ---
+        window.saveVendor = async function() {
+            const rawName = document.getElementById('inputVendorName').value;
+            const name = rawName ? rawName.toUpperCase() : "";
+            const priceOncall = document.getElementById('inputPriceOncall').value;
+            const priceContract = document.getElementById('inputPriceContract').value;
+
+            if (!name) return alert("Nama Vendor wajib diisi!");
+
+            const btn = document.querySelector('#vendorModal .btn-save');
+            btn.innerText = "Menyimpan...";
+            btn.disabled = true;
+
+            try {
+                await db.collection("master_vendors").add({
+                    name: name,
+                    priceOncall: Number(priceOncall) || 0,     // Simpan angka
+                    priceContract: Number(priceContract) || 0, // Simpan angka
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                alert("Vendor berhasil disimpan!");
+                closeModal('vendorModal');
+                
+                // Reset Form
+                document.getElementById('inputVendorName').value = "";
+                document.getElementById('inputPriceOncall').value = "";
+                document.getElementById('inputPriceContract').value = "";
+                
+                loadVendors();
+            } catch (err) {
+                alert("Error: " + err.message);
+            } finally {
+                btn.innerText = "Simpan Vendor";
+                btn.disabled = false;
+            }
+        };
+
+        window.loadVendors = async function() {
+            const tbody = document.querySelector('#vendorTable tbody');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">Memuat data...</td></tr>';
+
+            try {
+                const snapshot = await db.collection("master_vendors").orderBy('name').get();
+                tbody.innerHTML = '';
+
+                if (snapshot.empty) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">Belum ada data vendor</td></tr>';
+                    return;
+                }
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const pOncall = formatRupiah(data.priceOncall || 0);
+                    const pContract = formatRupiah(data.priceContract || 0);
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><b>${data.name}</b></td>
+                            <td class="text-price" style="color:#d97706">${pOncall}</td>
+                            <td class="text-price" style="color:#166534">${pContract}</td>
+                            <td>
+                                <button class="btn-icon" onclick="deleteItem('master_vendors', '${doc.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
+        // --- 5. LOGIKA CUSTOMER (SIMPAN & LOAD AREA) ---
+        window.saveCustomer = async function() {
+            const name = document.getElementById('inputCustomerName').value;
+            const area = document.getElementById('inputCustomerArea').value;
+
+            if (!name) return alert("Nama Customer wajib diisi!");
+
+            const btn = document.querySelector('#customerModal .btn-save');
+            btn.innerText = "Menyimpan...";
+            btn.disabled = true;
+
+            try {
+                await db.collection("master_customers").add({
+                    name: name,
+                    area: area || "-", 
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                alert("Customer berhasil disimpan!");
+                closeModal('customerModal');
+                
+                // Reset Form
+                document.getElementById('inputCustomerName').value = "";
+                document.getElementById('inputCustomerArea').value = "";
+                
+                loadCustomers();
+            } catch (err) {
+                alert("Error: " + err.message);
+            } finally {
+                btn.innerText = "Simpan Customer";
+                btn.disabled = false;
+            }
+        };
+
+        window.loadCustomers = async function() {
+            const tbody = document.querySelector('#customerTable tbody');
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">Memuat data...</td></tr>';
+
+            try {
+                const snapshot = await db.collection("master_customers").orderBy('name').get();
+                tbody.innerHTML = '';
+
+                if (snapshot.empty) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">Belum ada data customer</td></tr>';
+                    return;
+                }
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><b>${data.name}</b></td>
+                            <td>
+                                <span class="badge-area">
+                                    <i class="fas fa-map-marker-alt"></i> ${data.area || "-"}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn-icon" onclick="deleteItem('master_customers', '${doc.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
+        // --- 6. HAPUS DATA ---
+        window.deleteItem = async function(collection, id) {
+            if(confirm("Yakin ingin menghapus data ini?")) {
+                await db.collection(collection).doc(id).delete();
+                if(collection === 'master_vendors') loadVendors();
+                else loadCustomers();
+            }
+        };
+
+        // --- 7. FILTER SEARCH ---
+        window.filterTable = function(tableId, inputId) {
+            const input = document.getElementById(inputId);
+            const filter = input.value.toLowerCase();
+            const table = document.getElementById(tableId);
+            const tr = table.getElementsByTagName("tr");
+
+            for (let i = 1; i < tr.length; i++) {
+                let td = tr[i].getElementsByTagName("td")[0];
+                if (td) {
+                    let txtValue = td.textContent || td.innerText;
+                    if (txtValue.toLowerCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }
+            }
+        };
+
+        // INIT SAAT LOAD
+        window.onload = function() {
+            loadVendors();
+            loadCustomers();
+        };
+    </script>
+</body>
+</html>

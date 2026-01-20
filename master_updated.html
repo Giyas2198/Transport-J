@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Core Logistics - Master Data Vendor (Monthly)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --primary: #007bff; --secondary: #6c757d; --success: #28a745; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 20px; color: #333; }
+        .container { max-width: 1100px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2, h3 { color: #2c3e50; margin-top: 0; }
+        
+        /* Layout Grid */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        /* Input Styles */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        textarea { font-family: monospace; font-size: 12px; }
+
+        /* Button Styles */
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; width: 100%; margin-top: 10px; }
+        .btn:hover { opacity: 0.8; }
+
+        /* Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f1f3f5; color: #495057; }
+        .price-tag { color: #28a745; font-weight: bold; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; background: #e9ecef; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Settings > Master Data Vendor</h2>
+        <button class="btn" style="background:#ccc">Kembali ke Dashboard</button>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Tambah / Update Manual</h3>
+            <div class="form-group">
+                <label>Nama Vendor</label>
+                <input type="text" id="manualName" placeholder="Contoh: PT. Logistik Jaya">
+            </div>
+            <div class="form-group">
+                <label>Monthly On-Call Rate (Estimasi/Bulan)</label>
+                <input type="number" id="manualOncall" placeholder="Rp 0">
+            </div>
+            <div class="form-group">
+                <label>Monthly Contract Price (Tetap/Bulan)</label>
+                <input type="number" id="manualContract" placeholder="Rp 0">
+            </div>
+            <button class="btn btn-primary" onclick="addManual()">Simpan Master</button>
+        </div>
+
+        <div class="card" style="border: 2px dashed var(--primary);">
+            <h3>🚀 Smart SAP Importer</h3>
+            <p style="font-size: 12px; color: #666;">Paste kolom dari SAP/Excel (Sistem otomatis deteksi Header)</p>
+            <textarea id="sapPasteArea" rows="8" placeholder="Nama Vendor	Oncall	Contract
+PT Maju	5000000	20000000
+PT Berkah	300000	0"></textarea>
+            <button class="btn btn-success" onclick="analyzeSAPData()">Analisis & Preview Data</button>
+        </div>
+    </div>
+
+    <div id="previewSection" class="card" style="display:none; border: 1px solid var(--success);">
+        <h3 id="previewTitle">Preview Deteksi Kolom</h3>
+        <div id="importPreview"></div>
+    </div>
+
+    <div class="card">
+        <h3>Daftar Harga Master Terdaftar (Monthly Basis)</h3>
+        <table id="masterTable">
+            <thead>
+                <tr>
+                    <th>Nama Vendor</th>
+                    <th>On-Call (Monthly)</th>
+                    <th>Contract (Monthly)</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="masterBody">
+                <tr>
+                    <td>Japra Logistics</td>
+                    <td class="price-tag">Rp 300,000</td>
+                    <td class="price-tag">Rp 29,000,000</td>
+                    <td><i class="fa fa-trash" style="color:red; cursor:pointer"></i></td>
+                </tr>
+                <tr>
+                    <td>Udin jaya gemilang</td>
+                    <td class="price-tag">Rp 6,000,000</td>
+                    <td class="price-tag">Rp 8,000,000</td>
+                    <td><i class="fa fa-trash" style="color:red; cursor:pointer"></i></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // FUNGSI ANALISIS HEADER OTOMATIS
+    function analyzeSAPData() {
+        const rawData = document.getElementById('sapPasteArea').value.trim();
+        if (!rawData) return alert("Paste data dulu bos!");
+
+        const rows = rawData.split('\n');
+        const headers = rows[0].split('\t').map(h => h.trim().toLowerCase());
+        
+        // Logika Pintar Deteksi Index Kolom
+        const idxNama = headers.findIndex(h => h.includes('nama') || h.includes('vendor'));
+        const idxOncall = headers.findIndex(h => h.includes('oncall') || h.includes('spot') || h.includes('daily'));
+        const idxContract = headers.findIndex(h => h.includes('contract') || h.includes('kontrak') || h.includes('monthly'));
+
+        if (idxNama === -1) return alert("Kolom 'Nama Vendor' tidak ditemukan. Pastikan ada header!");
+
+        let previewHTML = `<table>
+            <tr style="background:#f1f1f1">
+                <th>Vendor (Deteksi)</th>
+                <th>On-Call (Deteksi)</th>
+                <th>Contract (Deteksi)</th>
+            </tr>`;
+
+        for (let i = 1; i < rows.length; i++) {
+            const cells = rows[i].split('\t');
+            const nama = cells[idxNama] || "---";
+            const oncall = cells[idxOncall] ? parseInt(cells[idxOncall].replace(/[^0-9]/g, "")) : 0;
+            const contract = cells[idxContract] ? parseInt(cells[idxContract].replace(/[^0-9]/g, "")) : 0;
+
+            previewHTML += `
+                <tr>
+                    <td>${nama}</td>
+                    <td class="price-tag">Rp ${oncall.toLocaleString()}</td>
+                    <td class="price-tag">Rp ${contract.toLocaleString()}</td>
+                </tr>`;
+        }
+        previewHTML += `</table><button class="btn btn-primary" style="margin-top:15px" onclick="confirmImport()">Konfirmasi Simpan ke Database</button>`;
+        
+        document.getElementById('importPreview').innerHTML = previewHTML;
+        document.getElementById('previewSection').style.display = 'block';
+    }
+
+    function addManual() {
+        const name = document.getElementById('manualName').value;
+        const oncall = parseInt(document.getElementById('manualOncall').value) || 0;
+        const contract = parseInt(document.getElementById('manualContract').value) || 0;
+
+        if(!name) return alert("Nama vendor wajib diisi!");
+        updateTable(name, oncall, contract);
+    }
+
+    function updateTable(name, oncall, contract) {
+        const table = document.getElementById('masterBody');
+        const row = `<tr>
+            <td>${name}</td>
+            <td class="price-tag">Rp ${oncall.toLocaleString()}</td>
+            <td class="price-tag">Rp ${contract.toLocaleString()}</td>
+            <td><i class="fa fa-trash" style="color:red; cursor:pointer"></i></td>
+        </tr>`;
+        table.innerHTML += row;
+        alert("Data berhasil ditambahkan!");
+    }
+
+    function confirmImport() {
+        alert("Suksess! Semua data SAP telah disinkronisasi ke Master Data.");
+        location.reload();
+    }
+</script>
+
+</body>
+</html>

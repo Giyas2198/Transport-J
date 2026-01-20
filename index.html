@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logistics OS - Login</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { primary: '#2563eb', secondary: '#475569' }
+                }
+            }
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script> <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Glass Effect untuk Login */
+        .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.5); }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased h-screen overflow-hidden">
+
+    <div id="section-login" class="flex items-center justify-center h-full w-full relative">
+        <div class="absolute inset-0 z-[-1]" style="background: radial-gradient(circle at center, #dbeafe 0%, #f1f5f9 70%);"></div>
+        
+        <div class="glass-panel p-8 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in text-center">
+            <div class="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 mx-auto mb-6">
+                <i class="fa-solid fa-truck-fast text-2xl text-white"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-1">Logistics OS</h2>
+            <p class="text-slate-500 text-sm mb-8">Supply Chain Management System</p>
+
+            <form onsubmit="handleLogin(event)" class="space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Email</label>
+                    <input type="email" id="email" class="w-full p-3 bg-white/50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="admin@core.com" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Password</label>
+                    <input type="password" id="password" class="w-full p-3 bg-white/50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="••••••" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-95">
+                    Masuk
+                </button>
+            </form>
+            <p class="mt-6 text-xs text-slate-400">Hubungi Administrator untuk pendaftaran akun Vendor.</p>
+        </div>
+    </div>
+
+   <div id="section-admin" class="hidden h-full flex">
+    <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-xl z-20">
+        <div class="p-6 border-b border-slate-700 flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+                <i class="fa-solid fa-truck-fast text-sm"></i>
+            </div>
+            <div>
+                <h2 class="font-bold tracking-wide">Admin Panel</h2>
+                <span class="text-[10px] bg-blue-500 px-1.5 rounded text-white">Super User</span>
+            </div>
+        </div>
+        <nav class="flex-1 py-6 px-3">
+            <ul class="nav-links space-y-1">
+                <li onclick="switchTab('dashboard')" id="nav-dashboard" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white"><i class="fa-solid fa-chart-line w-5"></i> Dashboard</li>
+                <li onclick="switchTab('planning')" id="nav-planning" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white"><i class="fa-solid fa-calendar-check w-5"></i> Planning</li>
+                <li onclick="switchTab('finance')" id="nav-finance" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white"><i class="fa-solid fa-file-invoice-dollar w-5"></i> Finance</li>
+                <li onclick="switchTab('master')" id="nav-master" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white"><i class="fa-solid fa-database w-5"></i> Master Data</li>
+                <li onclick="switchTab('drivers')" id="nav-drivers" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white"><i class="fa-solid fa-id-card w-5"></i> Data Driver</li>
+                <li onclick="switchTab('storage')" id="nav-storage" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white"><i class="fa-solid fa-server w-5"></i> Storage & Health</li>
+                <li onclick="switchTab('gps')" id="nav-gps" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white"><i class="fa-solid fa-map-location-dot w-5"></i> GPS Tracking</li>    
+                <li onclick="switchTab('epod-center')" id="nav-epod-center" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white">
+                    <i class="fa-brands fa-whatsapp w-5"></i> e-POD Center</li>
+                <li onclick="switchTab('ops-control')" id="nav-ops-control" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white">
+                    <i class="fa-solid fa-barcode w-5"></i> Ops Control (Gate)</li>
+            </ul>
+        </nav>
+        <div class="p-4 border-t border-slate-700">
+            <button onclick="logout()" class="w-full flex items-center gap-2 text-slate-400 hover:text-white transition"><i class="fa-solid fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </aside>
+
+    <main class="flex-1 h-full overflow-hidden flex flex-col bg-slate-50 relative">
+        <div class="flex-1 overflow-y-auto p-8 scroll-smooth" id="admin-content-area">
+            
+            <section id="view-dashboard" class="view-section"></section>
+            
+            <section id="view-planning" class="view-section hidden"></section>
+            
+            <section id="view-finance" class="view-section hidden"></section>
+            
+            <section id="view-master" class="view-section hidden"></section>
+            
+            <section id="view-drivers" class="view-section hidden"></section>
+            
+            <section id="view-storage" class="view-section hidden animate-fade-in"></section>
+
+            <section id="view-gps" class="view-section hidden h-full relative animate-fade-in">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-slate-800">Real-time Fleet Tracking</h2>
+                    <span class="text-xs font-mono bg-emerald-100 text-emerald-700 px-2 py-1 rounded border border-emerald-200 animate-pulse">● LIVE SATELLITE</span>
+                </div>
+                
+                <div id="map" class="w-full h-[600px] rounded-2xl shadow-lg border border-slate-200 z-10 relative"></div>
+                
+                <div class="absolute top-20 right-4 z-[999] bg-white/90 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-white w-64 max-h-[500px] overflow-y-auto">
+                    <h3 class="font-bold text-slate-800 mb-2 text-sm flex items-center gap-2">
+                        <span class="relative flex h-2 w-2">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        Live Fleet Monitor
+                    </h3>
+                    <ul id="gps-sidebar-list" class="space-y-2 text-xs">
+                        <li class="text-slate-400">Menghubungkan ke satelit...</li>
+                    </ul>
+                </div>
+            </section>
+            <section id="view-epod-center" class="view-section hidden animate-fade-in"></section>
+            <section id="view-ops-control" class="view-section hidden animate-fade-in"></section>
+        </div>
+    </main>
+</div>
+
+    <div id="section-vendor" class="hidden h-full flex">
+        <aside class="w-64 bg-emerald-900 text-white flex flex-col shadow-xl z-20">
+            <div class="p-6 border-b border-emerald-800 flex items-center gap-3">
+                <div class="w-8 h-8 bg-emerald-500 rounded flex items-center justify-center"><i class="fa-solid fa-building text-sm"></i></div>
+                <div>
+                    <h2 class="font-bold tracking-wide">Vendor Portal</h2>
+                    <span id="vendor-name-display" class="text-[10px] bg-emerald-600 px-1.5 rounded text-emerald-100 truncate max-w-[120px] block">...</span>
+                </div>
+            </div>
+            <nav class="flex-1 py-6 px-3">
+                <ul class="nav-links space-y-1">
+                    <li onclick="switchVendorTab('v-dashboard')" id="nav-v-dashboard" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer bg-white/10 text-white"><i class="fa-solid fa-chart-pie w-5"></i> Performance</li>
+                    <li onclick="switchVendorTab('v-orders')" id="nav-v-orders" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-emerald-200 hover:text-white"><i class="fa-solid fa-truck-ramp-box w-5"></i> Get Orders <span id="badge-order" class="hidden bg-red-500 text-white text-[9px] px-1.5 rounded-full">New</span></li>
+                    <li onclick="switchVendorTab('v-drivers')" id="nav-v-drivers" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-emerald-200 hover:text-white"><i class="fa-solid fa-user-plus w-5"></i> Input Driver</li>
+                    <li onclick="switchVendorTab('v-epod')" id="nav-v-epod" class="group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/10 text-emerald-200 hover:text-white">
+                        <i class="fa-solid fa-camera w-5"></i> Upload e-POD</li>
+                </ul>
+            </nav>
+            <div class="p-4 border-t border-emerald-800">
+                <button onclick="logout()" class="w-full flex items-center gap-2 text-emerald-300 hover:text-white transition"><i class="fa-solid fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </aside>
+
+        <main class="flex-1 h-full overflow-hidden flex flex-col bg-slate-50 relative">
+            <div class="flex-1 overflow-y-auto p-8 scroll-smooth" id="vendor-content-area">
+                
+               <section id="view-v-dashboard" class="v-section animate-fade-in">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-800">Performance Overview</h2>
+            <p class="text-slate-500 text-sm">Monitoring real-time aktivitas pengiriman Anda.</p>
+        </div>
+        <button onclick="loadVendorDashboard()" class="text-emerald-600 hover:text-emerald-700 text-sm font-bold">
+            <i class="fa fa-refresh"></i> Refresh Data
+        </button>
+    </div>
+
+    <div id="v-stats-container" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 animate-pulse">Loading stats...</div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-blue-500"></i> Tren Kualitas Pengiriman
+            </h3>
+            <div style="height: 300px; width: 100%;">
+                <canvas id="vendorScoreChart"></canvas>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+            <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-chart-pie text-emerald-500"></i> Komposisi Order
+            </h3>
+            <div style="height: 250px; width: 100%; position: relative;">
+                <canvas id="vendorStatusChart"></canvas>
+            </div>
+            <div id="status-legend" class="mt-4 space-y-2 text-sm text-slate-600">
+                </div>
+        </div>
+    </div>
+</section> 
+
+                <section id="view-v-orders" class="v-section hidden animate-fade-in">
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">Order Masuk</h2>
+                    <p class="text-slate-500 mb-6">Daftar pengiriman yang dialokasikan Admin untuk Anda.</p>
+                    <div id="vendor-orders-list" class="space-y-4">
+                        </div>
+                </section>
+
+                <section id="view-v-drivers" class="v-section hidden animate-fade-in">
+                    <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+                        <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                            <i class="fa-solid fa-id-card text-emerald-600"></i> Registrasi Driver & Armada
+                        </h2>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nama Driver</label>
+                                <input type="text" id="v-driver-name" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:border-emerald-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">No. HP / WA</label>
+                                    <input type="text" id="v-driver-phone" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Plat Nomor (Nopol)</label>
+                                    <input type="text" id="v-driver-plate" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Jenis Truk</label>
+                                <select id="v-driver-type" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:border-emerald-500">
+                                    <option>Wingbox</option>
+                                    <option>CDD (Double)</option>
+                                    <option>CDE (Engkel)</option>
+                                    <option>Trailer</option>
+                                </select>
+                            </div>
+                            
+                            <button onclick="submitDriver()" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-500/30 transition-all">
+                                Simpan Data Driver
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="max-w-2xl mx-auto mt-8">
+                        <h3 class="font-bold text-slate-700 mb-3">Driver Terdaftar Anda</h3>
+                        <ul id="vendor-my-drivers" class="space-y-2"></ul>
+                    </div>
+                </section>
+
+                <section id="view-v-epod" class="v-section hidden animate-fade-in"></section>    
+    </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
