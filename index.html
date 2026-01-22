@@ -258,7 +258,28 @@
                 <section id="view-v-epod" class="v-section hidden animate-fade-in"></section>    
     </div>
     </main>
+</div>
+<div id="ai-widget-container" style="display: flex; position: fixed; bottom: 30px; right: 30px; z-index: 999999; flex-direction: column; align-items: flex-end; gap: 15px;">
+    
+    <div id="ai-chat-box" style="display: none; width: 350px; height: 450px; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); border: 1px solid #bfdbfe; overflow: hidden; flex-direction: column;">
+        <div style="background: #2563eb; padding: 15px; color: white; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-weight: bold; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-robot"></i> Logistics AI</div>
+            <button onclick="toggleAiChat()" style="background:none; border:none; color:white; cursor:pointer;"><i class="fa fa-times"></i></button>
+        </div>
+        <div id="ai-messages" class="custom-scrollbar" style="flex: 1; padding: 15px; overflow-y: auto; background: #f8fafc; display: flex; flex-direction: column; gap: 10px;">
+            <div style="background: white; border: 1px solid #e2e8f0; padding: 10px; border-radius: 0 12px 12px 12px; font-size: 14px;">Halo Admin! 👋 Server Python ON. Siap membantu!</div>
+        </div>
+        <div style="padding: 10px; border-top: 1px solid #eee; display: flex; gap: 5px; background: white;">
+            <input type="text" id="ai-input" placeholder="Ketik pesan..." style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+            <button onclick="sendAiMessage()" style="background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px;"><i class="fa fa-paper-plane"></i></button>
+        </div>
+    </div>
 
-    <script src="app.js"></script>
-</body>
+    <button onclick="toggleAiChat()" style="width: 60px; height: 60px; background: #2563eb; color: white; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+        <i class="fa-solid fa-robot"></i>
+    </button>
+</div>
+ 
+<script src="app.js"></script> 
+</body> 
 </html>
