@@ -28,71 +28,104 @@ let dashboardUnsubscribe = null;
 // ==========================================
 // 2.5. SISTEM LOGIN & AUTO-DETECT NAMA (UPDATED)
 // ==========================================
+// app.js
+
+// ==========================================
+// 2.5. SISTEM LOGIN & AUTO-DETECT NAMA (UPDATED)
+// ==========================================
+// ==========================================
+// 2.5. SISTEM LOGIN & VISIBILITAS CHAT BOT
+// ==========================================
+// ==========================================
+// 2.5. SISTEM LOGIN & VISIBILITAS CHAT BOT (REVISI FINAL)
+// ==========================================
+// app.js - Bagian Auth (Ganti Full Blok Ini)
+
+// ==========================================
+// 2.5. SISTEM LOGIN & LOGIKA ROLE (UPDATED)
+// ==========================================
 auth.onAuthStateChanged(async (user) => {
+    // Referensi ke Widget Robot AI
+    const aiWidget = document.getElementById('ai-widget-container');
+
     if (user) {
         try {
-            // 1. Cek apakah user terdaftar di database Firestore?
+            // 1. Cek data user di Firestore
             const userDoc = await db.collection('users').doc(user.uid).get();
 
             if (userDoc.exists) {
-                // === SKENARIO 1: USER TERDAFTAR ===
                 let userData = userDoc.data();
-                
-                // [FITUR BARU] Auto-Detect Nama Vendor dari Email
-                // Jika login sebagai vendor TAPI belum punya nama vendor
+
+                // [LOGIC VENDOR] Auto-Detect Nama dari Email jika belum ada
                 if (userData.role === 'vendor' && !userData.vendorName) {
-                    // Ambil nama dari email (sebelum @)
-                    // Contoh: "macan@logistics.id" -> jadi "MACAN"
                     const autoName = user.email.split('@')[0].toUpperCase();
-                    
-                    // Update otomatis ke database
-                    await db.collection('users').doc(user.uid).update({
-                        vendorName: autoName
-                    });
-                    
-                    // Update data lokal agar langsung tampil tanpa refresh
+                    await db.collection('users').doc(user.uid).update({ vendorName: autoName });
                     userData.vendorName = autoName;
-                    
-                    console.log(`Nama Vendor otomatis di-set ke: ${autoName}`);
                 }
 
-                // Simpan ke Global Variable
+                // Simpan User ke Global Variable
                 currentUser = { ...user, ...userData };
                 
                 // Sembunyikan Login Form
                 document.getElementById('section-login').classList.add('hidden');
-                
-                // Arahkan sesuai Role
+
+                // === CEK ROLE ===
                 if (userData.role === 'admin') {
+                    // 🟢 JIKA ADMIN:
                     document.getElementById('section-admin').classList.remove('hidden');
+                    
+                  const aiWidget = document.getElementById('ai-widget-container');
+    if(aiWidget) {
+        console.log("🤖 ROBOT DIPAKSA MUNCUL!"); // Cek console nanti
+        
+        // 1. Hapus class hidden bawaan Tailwind (jika ada)
+        aiWidget.classList.remove('hidden');
+
+        // 2. Timpa Style CSS secara Brutal dengan !important
+        aiWidget.style.cssText = `
+            display: flex !important;
+            position: fixed !important;
+            bottom: 30px !important;
+            right: 30px !important;
+            z-index: 2147483647 !important; /* Z-Index Tertinggi */
+            flex-direction: column !important;
+            align-items: flex-end !important;
+            gap: 15px !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        `;
+    } else {
+        console.error("❌ ERROR: Elemen 'ai-widget-container' tidak ketemu di HTML!");
+    }
+
                     switchTab('dashboard'); 
+
                 } else if (userData.role === 'vendor') {
+                    // 🟠 JIKA VENDOR:
                     document.getElementById('section-vendor').classList.remove('hidden');
                     
-                    // Set Nama ke Global & UI
-                    currentVendorName = userData.vendorName; 
-                    
+                    // >> SEMBUNYIKAN ROBOT AI (PENTING) <<
+                    if(aiWidget) aiWidget.classList.add('hidden');
+
+                    // Set Nama Vendor
+                    currentVendorName = userData.vendorName;
                     const vendorLabel = document.getElementById('vendor-name-display');
                     if(vendorLabel) vendorLabel.innerText = currentVendorName;
                     
-                    // Load data awal
+                    // Load Data Vendor
                     switchVendorTab('v-dashboard');
                     listenForNewOrders();
                 }
 
             } else {
-                // === SKENARIO 2: USER TIDAK TERDAFTAR DI DATABASE ===
-                // Munculkan Pop Up sesuai permintaan
+                // User login di Firebase Auth tapi tidak ada di database Firestore
                 Swal.fire({
                     title: 'Akses Ditolak',
-                    text: 'Akun Anda belum terdaftar di sistem database. Tolong daftarkan dulu ke contact Admin ya.',
+                    text: 'Akun Anda belum terdaftar di database. Hubungi Administrator.',
                     icon: 'warning',
-                    confirmButtonColor: '#d33',
-                    confirmButtonText: 'Siap, saya hubungi Admin'
-                }).then(() => {
-                    // Paksa Logout
-                    auth.signOut();
-                });
+                    confirmButtonColor: '#d33'
+                }).then(() => { auth.signOut(); });
             }
 
         } catch (e) {
@@ -104,15 +137,20 @@ auth.onAuthStateChanged(async (user) => {
         // === STATE LOGOUT ===
         currentUser = null;
         currentVendorName = null;
+        
+        // Matikan listener realtime agar tidak memory leak
         if(dashboardUnsubscribe) dashboardUnsubscribe();
         if(vendorOrderUnsubscribe) vendorOrderUnsubscribe();
         
+        // Reset Tampilan
         document.getElementById('section-login').classList.remove('hidden');
         document.getElementById('section-admin').classList.add('hidden');
         document.getElementById('section-vendor').classList.add('hidden');
+
+        // >> SEMBUNYIKAN ROBOT SAAT LOGOUT <<
+        if(aiWidget) aiWidget.classList.add('hidden');
     }
 });
-
 // PERBAIKAN 2: REAL-TIME ORDER LISTENER
 // ==========================================
 let vendorOrderUnsubscribe = null;
@@ -2719,4 +2757,110 @@ async function onScanSuccess(decodedText, decodedResult) {
             openScanner();
         });
     }
+}
+// ==========================================
+// 14. INTEGRASI AI CHAT (FRONTEND to PYTHON)
+// ==========================================
+
+// Fungsi Toggle (Buka/Tutup Chat)
+// app.js
+
+window.toggleAiChat = function() {
+    const box = document.getElementById('ai-chat-box');
+    
+    // Cek apakah sedang tertutup (display none atau kosong)
+    if (box.style.display === 'none' || box.style.display === '') {
+        // BUKA
+        box.style.display = 'flex';
+        // Delay sedikit agar transisi CSS opacity jalan
+        setTimeout(() => {
+            box.style.opacity = '1';
+            box.style.transform = 'scale(1)';
+        }, 10);
+        
+        // Fokus ke input otomatis
+        setTimeout(() => document.getElementById('ai-input').focus(), 100);
+        
+    } else {
+        // TUTUP
+        box.style.opacity = '0';
+        box.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+            box.style.display = 'none';
+        }, 200); // Tunggu animasi selesai baru hilangkan
+    }
+};
+// Event Listener buat tombol Enter
+document.getElementById('ai-input')?.addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') sendAiMessage();
+});
+
+// Fungsi Kirim Pesan
+async function sendAiMessage() {
+    const input = document.getElementById('ai-input');
+    const msgArea = document.getElementById('ai-messages');
+    const message = input.value.trim();
+
+    if (!message) return;
+
+    // 1. Tampilkan Pesan Kita (User)
+    msgArea.innerHTML += `
+        <div class="flex justify-end animate-fade-in">
+            <div class="bg-blue-600 text-white p-3 rounded-tl-xl rounded-bl-xl rounded-br-xl shadow-md max-w-[85%]">
+                ${message}
+            </div>
+        </div>
+    `;
+    input.value = '';
+    msgArea.scrollTop = msgArea.scrollHeight; // Auto scroll ke bawah
+
+    // 2. Tampilkan Loading Bubble
+    const loadingId = 'loading-' + Date.now();
+    msgArea.innerHTML += `
+        <div id="${loadingId}" class="flex justify-start animate-fade-in">
+            <div class="bg-white border border-slate-200 text-slate-500 p-3 rounded-tr-xl rounded-bl-xl rounded-br-xl shadow-sm italic text-xs">
+                <i class="fa fa-circle-notch fa-spin mr-1"></i> Mengetik...
+            </div>
+        </div>
+    `;
+    msgArea.scrollTop = msgArea.scrollHeight;
+
+    try {
+        // 3. PANGGIL PYTHON (Backend Localhost)
+        const response = await fetch('http://127.0.0.1:5000/webhook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                message: message, 
+                sender: "Admin Web" // Biar Python tau ini dari Web
+            })
+        });
+
+        const data = await response.json();
+
+        // 4. Hapus Loading & Tampilkan Jawaban AI
+        document.getElementById(loadingId).remove();
+        
+        // Format Text (Ganti \n jadi <br>)
+        const replyFormatted = data.reply.replace(/\n/g, '<br>');
+
+        msgArea.innerHTML += `
+            <div class="flex justify-start animate-fade-in">
+                <div class="bg-white border border-slate-200 text-slate-700 p-3 rounded-tr-xl rounded-bl-xl rounded-br-xl shadow-sm max-w-[85%]">
+                    ${replyFormatted}
+                </div>
+            </div>
+        `;
+
+    } catch (error) {
+        document.getElementById(loadingId).remove();
+        msgArea.innerHTML += `
+            <div class="flex justify-start">
+                <div class="bg-red-50 text-red-600 border border-red-200 p-3 rounded-tr-xl rounded-bl-xl rounded-br-xl text-xs">
+                    Error: Python server belum nyala bos! (Cek Terminal)
+                </div>
+            </div>
+        `;
+    }
+    msgArea.scrollTop = msgArea.scrollHeight;
 }
