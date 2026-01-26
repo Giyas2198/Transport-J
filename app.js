@@ -1942,77 +1942,117 @@ window.loadStorageInfo = async function() {
     }
 };
 // ==========================================
-// 13. MODULE: GPS TRACKING (LEAFLET JS)
+// 13. MODULE: GPS TRACKING & WEATHER (UPDATED)
 // ==========================================
 let mapInstance = null;
-let truckMarkers = {}; // Menyimpan referensi marker
+let truckMarkers = {}; 
 
-// Data Dummy Truk (Lokasi Awal - Contoh: Sekitar Jakarta/Jabar)
+// Data Dummy Truk (Lokasi Awal)
 const activeTrucks = [
-    { id: 'T-001', driver: 'Budi Santoso', vendor: 'MACAN LOGISTICS', lat: -6.200000, lng: 106.816666, dest: 'Bandung' },
-    { id: 'T-002', driver: 'Agus Kotak', vendor: 'JAYA ABADI', lat: -6.300000, lng: 107.000000, dest: 'Cikarang' },
-    { id: 'T-003', driver: 'Rian Jombang', vendor: 'TRANSINDO', lat: -6.595038, lng: 106.816635, dest: 'Bogor' },
-    { id: 'T-004', driver: 'Siti Trucker', vendor: 'MACAN LOGISTICS', lat: -6.917464, lng: 107.619125, dest: 'Jakarta' }
+    { id: 'T-001', driver: 'Budi Santoso', vendor: 'MACAN LOGISTICS', lat: -6.200000, lng: 106.816666, dest: 'Bandung', shipment: 'DN-2601' },
+    { id: 'T-002', driver: 'Agus Kotak', vendor: 'JAYA ABADI', lat: -6.300000, lng: 107.000000, dest: 'Cikarang', shipment: 'DN-2602' },
+    { id: 'T-003', driver: 'Rian Jombang', vendor: 'TRANSINDO', lat: -6.595038, lng: 106.816635, dest: 'Bogor', shipment: 'DN-2603' },
+    { id: 'T-004', driver: 'Siti Trucker', vendor: 'MACAN LOGISTICS', lat: -6.917464, lng: 107.619125, dest: 'Jakarta', shipment: 'DN-2604' }
 ];
 
 window.loadGpsTracking = function() {
     const container = document.getElementById('view-gps');
     if (!container) return;
 
-    // 1. Inisialisasi Peta (Hanya sekali)
+    // 1. Inisialisasi Peta
     if (!mapInstance) {
-        // Set view ke Jawa Barat/Jakarta
-        mapInstance = L.map('map').setView([-6.402484, 106.794241], 9); 
-
-        // Gunakan Tile OpenStreetMap (Gratis)
+        mapInstance = L.map('map').setView([-6.5, 107.2], 9); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(mapInstance);
     }
-
-    // 2. Fix Masalah Peta Grey (Leaflet Glitch saat hidden div)
     setTimeout(() => { mapInstance.invalidateSize(); }, 200);
 
-    // 3. Mulai Simulasi Pergerakan
+    // 2. Mulai Simulasi
     startGpsSimulation();
 };
 
-function startGpsSimulation() {
-    // Render Marker Awal
-    activeTrucks.forEach(truck => {
+// --- FITUR BARU: AMBIL CUACA DARI KOORDINAT ---
+async function getWeatherInfo(lat, lng) {
+    try {
+        // Pakai Open-Meteo (Gratis, No API Key, Support Lat/Lng)
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=Asia%2FBangkok`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        // Terjemahkan Kode Cuaca (WMO Code)
+        const code = data.current_weather.weathercode;
+        const temp = data.current_weather.temperature;
+        
+        let weatherDesc = "Cerah";
+        let icon = "fa-sun text-yellow-500";
+        
+        // Logika WMO Code sederhana
+        if (code >= 1 && code <= 3) { weatherDesc = "Berawan"; icon = "fa-cloud text-slate-400"; }
+        if (code >= 45 && code <= 48) { weatherDesc = "Kabut"; icon = "fa-smog text-slate-300"; }
+        if (code >= 51 && code <= 67) { weatherDesc = "Gerimis"; icon = "fa-cloud-rain text-blue-300"; }
+        if (code >= 80 && code <= 99) { weatherDesc = "Hujan Deras/Badai"; icon = "fa-cloud-showers-heavy text-blue-600"; }
+
+        return { temp, desc: weatherDesc, icon };
+    } catch (e) {
+        return { temp: "-", desc: "Data N/A", icon: "fa-question" };
+    }
+}
+
+async function startGpsSimulation() {
+    // Loop setiap truk untuk pasang marker & cek cuaca
+    for (const truck of activeTrucks) {
+        
         if (!truckMarkers[truck.id]) {
-            // Icon Kustom Truk (FontAwesome)
+            // 1. Ambil Cuaca Dulu (Async)
+            const weather = await getWeatherInfo(truck.lat, truck.lng);
+
+            // 2. Icon Truk
             const customIcon = L.divIcon({
-                html: `<div class="w-8 h-8 bg-blue-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white transform -translate-x-1/2 -translate-y-1/2">
+                html: `<div class="w-10 h-10 bg-blue-600 rounded-full border-2 border-white shadow-lg flex flex-col items-center justify-center text-white relative">
                         <i class="fa-solid fa-truck-fast text-xs"></i>
+                        <span class="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm">
+                            <i class="fa-solid ${weather.icon} text-[10px]"></i>
+                        </span>
                        </div>`,
-                className: 'bg-transparent', // Hapus background default leaflet
+                className: 'bg-transparent',
                 iconSize: [40, 40]
             });
 
-            // Buat Marker
+            // 3. Pasang Marker
             const marker = L.marker([truck.lat, truck.lng], { icon: customIcon }).addTo(mapInstance);
             
-            // Tambah Popup Info
+            // 4. Popup Detail (Ada Cuaca & No DN)
             marker.bindPopup(`
-                <div class="font-sans text-left">
-                    <b class="text-blue-600 block mb-1">${truck.id}</b>
-                    <div class="text-xs text-slate-600">Driver: <b>${truck.driver}</b></div>
-                    <div class="text-xs text-slate-500">Vendor: ${truck.vendor}</div>
-                    <div class="text-xs text-slate-500">Tujuan: ${truck.dest}</div>
-                    <div class="mt-2 text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded inline-block font-bold">
-                        Status: Moving <i class="fa fa-bolt"></i>
+                <div class="font-sans text-left min-w-[200px]">
+                    <div class="flex justify-between items-start border-b pb-2 mb-2">
+                        <div>
+                            <b class="text-blue-600 block text-lg">${truck.id}</b>
+                            <span class="text-[10px] bg-slate-100 px-1 rounded font-mono">${truck.shipment}</span>
+                        </div>
+                        <div class="text-center">
+                            <i class="fa-solid ${weather.icon} text-xl block mb-1"></i>
+                            <span class="text-xs font-bold">${weather.temp}°C</span>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-1 text-xs text-slate-600">
+                        <div><i class="fa fa-user w-4"></i> ${truck.driver}</div>
+                        <div><i class="fa fa-building w-4"></i> ${truck.vendor}</div>
+                        <div><i class="fa fa-location-dot w-4 text-red-500"></i> Tujuan: <b>${truck.dest}</b></div>
+                        <div class="mt-2 pt-2 border-t text-[10px] text-slate-400">
+                            Cuaca Lokasi: <b>${weather.desc}</b>
+                        </div>
                     </div>
                 </div>
             `);
             
             truckMarkers[truck.id] = marker;
         }
-    });
+    }
 
-    // Update Posisi Setiap 2 Detik (Simulasi GPS Ping)
+    // Update Posisi Simulasi (Tanpa refresh cuaca terus menerus biar hemat data)
     if (window.gpsInterval) clearInterval(window.gpsInterval);
-    
     window.gpsInterval = setInterval(() => {
         updateTruckPositions();
     }, 2000);
@@ -2023,24 +2063,26 @@ function updateTruckPositions() {
     let listHtml = '';
 
     activeTrucks.forEach(truck => {
-        // Simulasi Gerak: Geser lat/lng sedikit secara acak
-        truck.lat += (Math.random() - 0.5) * 0.005; // Geser Vertikal
-        truck.lng += (Math.random() - 0.5) * 0.005; // Geser Horizontal
+        // Simulasi Gerak Sedikit
+        truck.lat += (Math.random() - 0.5) * 0.002;
+        truck.lng += (Math.random() - 0.5) * 0.002;
         
-        // Update Marker di Peta
         if (truckMarkers[truck.id]) {
             const newLatLng = new L.LatLng(truck.lat, truck.lng);
             truckMarkers[truck.id].setLatLng(newLatLng);
         }
 
-        // Update List di Sidebar Overlay
+        // List di Sidebar Kanan
         listHtml += `
-            <li class="bg-slate-50 p-2 rounded border border-slate-100 hover:bg-blue-50 cursor-pointer transition" onclick="focusTruck('${truck.id}')">
-                <div class="flex justify-between items-center">
-                    <b class="text-slate-700">${truck.id}</b>
-                    <span class="text-[10px] bg-slate-200 px-1 rounded">${Math.floor(Math.random() * 20 + 60)} km/h</span>
+            <li class="bg-slate-50 p-3 rounded-xl border border-slate-100 hover:bg-blue-50 cursor-pointer transition group" onclick="focusTruck('${truck.id}')">
+                <div class="flex justify-between items-center mb-1">
+                    <b class="text-slate-700 group-hover:text-blue-600">${truck.id}</b>
+                    <span class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">${Math.floor(Math.random() * 20 + 60)} km/h</span>
                 </div>
-                <div class="text-[10px] text-slate-500 truncate">${truck.driver} • ${truck.dest}</div>
+                <div class="text-xs text-slate-500 mb-1">${truck.shipment} • ${truck.dest}</div>
+                <div class="text-[10px] text-slate-400 flex items-center gap-1">
+                    <i class="fa fa-satellite-dish text-[8px]"></i> Update: Just now
+                </div>
             </li>
         `;
     });
@@ -2048,11 +2090,10 @@ function updateTruckPositions() {
     if(sidebarList) sidebarList.innerHTML = listHtml;
 }
 
-// Fitur Zoom ke Truk saat list diklik
 window.focusTruck = function(id) {
     const truck = activeTrucks.find(t => t.id === id);
     if (truck && mapInstance) {
-        mapInstance.flyTo([truck.lat, truck.lng], 13); // Efek terbang (Zoom In)
+        mapInstance.flyTo([truck.lat, truck.lng], 13);
         truckMarkers[id].openPopup();
     }
 };
