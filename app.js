@@ -380,7 +380,10 @@ window.switchTab = function(tabId) {
     if(tabId === 'finance') loadFinanceData();
     if(tabId === 'drivers') loadDriversData(); // Nanti kita update isinya
     if(tabId === 'storage') loadStorageInfo();
-    if(tabId === 'gps') loadGpsTracking();
+    if(tabId === 'gps') {
+        loadGpsTracking();
+        initWeatherSystem(); // <--- TAMBAHKAN BARIS INI
+    }
     if(tabId === 'epod-center') loadAdminEpod();
     if(tabId === 'ops-control') loadOpsControl();
 };
@@ -864,7 +867,16 @@ window.loadPlanningData = async function() {
                 </div>
                 
                 <h4 class="font-bold text-slate-800 text-sm mb-1 leading-tight">${data.customer}</h4>
-                <p class="text-xs text-slate-500 mb-3 flex items-center gap-1"><i class="fa fa-location-dot text-[10px]"></i> ${data.destination}</p>
+                <div class="mb-3">
+                    <p class="text-xs text-slate-500 flex items-center gap-1 mb-1">
+                        <i class="fa fa-location-dot text-[10px] text-red-400"></i> ${data.destination}
+                    </p>
+                    ${data.estimatedDistance ? 
+                        `<span class="text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded font-mono font-bold">
+                        <i class="fa fa-road mr-1"></i>${data.estimatedDistance} km
+                        </span>` : ''
+                    }
+                </div>
                 
                 <div class="pt-2 border-t border-dashed border-slate-100 flex justify-between items-center">
                     <span class="text-[10px] font-bold ${data.vendor ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-400'} px-2 py-1 rounded border truncate max-w-[100px]">
@@ -915,64 +927,173 @@ window.loadPlanningData = async function() {
     } catch (e) { console.error(e); }
 };
 
+// ==========================================
+// UPDATE: ADD NEW ORDER (MANUAL SHIPMENT + AUTO DESTINATION)
+// ==========================================
 window.addNewOrder = async function() {
-    const custOptions = await getOptionsHTML('master_customers');
     
+    // 1. AMBIL DATA CUSTOMER + AREA (KOTA)
+    // Kita buat manual loop di sini (bukan getOptionsHTML biasa) 
+    // agar bisa menyimpan data 'area' ke dalam atribut opsi
+    let custOptionsHTML = '<option value="" disabled selected>-- Pilih Customer --</option>';
+    try {
+        const snap = await db.collection('master_customers').orderBy('name').get();
+        snap.forEach(doc => {
+            const d = doc.data();
+            // Kita simpan area di atribut 'data-area' biar bisa dipanggil JS
+            custOptionsHTML += `<option value="${d.name}" data-area="${d.area || ''}">${d.name}</option>`;
+        });
+    } catch (e) {
+        custOptionsHTML = '<option>Gagal load data</option>';
+    }
+
+    // 2. TAMPILKAN POPUP FORM
     const { value: formValues } = await Swal.fire({
         title: 'Buat Plan Baru',
+        width: 650,
         html: `
-            <div class="text-left space-y-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">No. Shipment</label>
-                    <input id="swal-shipment" class="w-full p-2.5 border rounded-lg text-sm" placeholder="DN-2026-001">
+            <div class="text-left space-y-4">
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">No. Shipment (Manual)</label>
+                        <input id="swal-shipment" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ketik No. Surat Jalan">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">No. WA PIC</label>
+                        <input type="number" id="swal-wa" class="w-full p-2.5 border rounded-lg text-sm" placeholder="628xxxx">
+                    </div>
                 </div>
+
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Customer</label>
-                    <select id="swal-cust" class="w-full p-2.5 border rounded-lg text-sm">${custOptions}</select>
+                    <select id="swal-cust" class="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                        ${custOptionsHTML}
+                    </select>
+                    <p class="text-[10px] text-slate-400 mt-1">*Tujuan akan terisi otomatis sesuai Master Data</p>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">No. WA PIC (62xxx)</label>
-                    <input type="number" id="swal-wa" class="w-full p-2.5 border rounded-lg text-sm" placeholder="628123456789">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tujuan</label>
-                    <input id="swal-dest" class="w-full p-2.5 border rounded-lg text-sm" placeholder="Kota Tujuan">
+
+                <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-blue-600 uppercase mb-1">Kota Tujuan & Jarak</label>
+                        <div class="flex gap-2">
+                            <input id="swal-dest" class="w-full p-2.5 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700" placeholder="Pilih customer dulu..." >
+                            
+                            <button type="button" id="btn-check-route" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition active:scale-95 whitespace-nowrap">
+                                <i class="fa fa-map-location-dot"></i> Hitung KM
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="route-result" class="hidden grid grid-cols-2 gap-3 animate-fade-in">
+                        <div class="bg-white p-2 rounded border border-blue-100 text-center">
+                            <span class="block text-[10px] text-slate-400 uppercase">Jarak Tempuh</span>
+                            <span id="res-dist" class="block text-lg font-black text-slate-800">- KM</span>
+                        </div>
+                        <div class="bg-white p-2 rounded border border-blue-100 text-center">
+                            <span class="block text-[10px] text-slate-400 uppercase">Est. Waktu</span>
+                            <span id="res-dur" class="block text-lg font-black text-slate-800">- Jam</span>
+                        </div>
+                        <input type="hidden" id="hidden-dist">
+                        <input type="hidden" id="hidden-dur">
+                    </div>
                 </div>
             </div>
         `,
         focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Simpan Plan',
+        confirmButtonColor: '#2563eb',
+        
+        // --- LOGIKA JAVASCRIPT ---
+        didOpen: () => {
+            const selectCust = document.getElementById('swal-cust');
+            const inputDest = document.getElementById('swal-dest');
+            const btnCheck = document.getElementById('btn-check-route');
+
+            // A. LOGIKA AUTO-FILL TUJUAN
+            selectCust.addEventListener('change', function() {
+                // Ambil opsi yang dipilih
+                const selectedOption = this.options[this.selectedIndex];
+                // Ambil data-area dari opsi tersebut
+                const area = selectedOption.getAttribute('data-area');
+                
+                if(area && area !== "undefined") {
+                    inputDest.value = area; // Isi otomatis
+                    
+                    // Opsional: Beri efek visual 'flash' biar user sadar
+                    inputDest.classList.add('bg-yellow-100');
+                    setTimeout(() => inputDest.classList.remove('bg-yellow-100'), 500);
+                } else {
+                    inputDest.value = ""; // Kosongkan jika master data gak punya area
+                    inputDest.placeholder = "Data Area kosong di Master Customer!";
+                }
+            });
+
+            // B. LOGIKA SMART ROUTE (Tetap dipakai buat hitung KM)
+            btnCheck.addEventListener('click', async () => {
+                const city = inputDest.value;
+                if(!city) return Swal.showValidationMessage("Tujuan masih kosong!");
+                
+                const oldText = btnCheck.innerHTML;
+                btnCheck.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+                btnCheck.disabled = true;
+
+                const destCoord = await getCoordinates(city);
+                if (destCoord) {
+                    // Pastikan variable WAREHOUSE_LOC sudah ada di app.js bagian atas
+                    const routeData = await calculateRouteOSRM(WAREHOUSE_LOC, destCoord);
+                    
+                    if (routeData) {
+                        document.getElementById('route-result').classList.remove('hidden');
+                        document.getElementById('res-dist').innerText = routeData.distanceKM + " km";
+                        document.getElementById('res-dur').innerText = routeData.durationHour + " jam";
+                        document.getElementById('hidden-dist').value = routeData.distanceKM;
+                        document.getElementById('hidden-dur').value = routeData.durationHour;
+                    } else {
+                        Swal.showValidationMessage("Gagal hitung rute.");
+                    }
+                } else {
+                    Swal.showValidationMessage("Kota tidak ditemukan di Peta.");
+                }
+                btnCheck.innerHTML = oldText;
+                btnCheck.disabled = false;
+            });
+        },
+
         preConfirm: () => {
-            return [
-                document.getElementById('swal-shipment').value,
-                document.getElementById('swal-cust').value,
-                document.getElementById('swal-wa').value,
-                document.getElementById('swal-dest').value
-            ];
+            const ship = document.getElementById('swal-shipment').value;
+            const cust = document.getElementById('swal-cust').value;
+            const wa = document.getElementById('swal-wa').value;
+            const dest = document.getElementById('swal-dest').value;
+            const dist = document.getElementById('hidden-dist').value || 0;
+            const dur = document.getElementById('hidden-dur').value || 0;
+
+            if (!ship) return Swal.showValidationMessage("No Shipment wajib diisi!");
+            if (!cust || !dest) return Swal.showValidationMessage("Customer & Tujuan wajib diisi!");
+            
+            return { ship, cust, wa, dest, dist, dur };
         }
     });
     
     if (formValues) {
-        const [shipmentNo, customer, phone, destination] = formValues;
-
-        if(!customer || !destination) {
-            return Swal.fire('Gagal', 'Customer dan Tujuan wajib diisi!', 'error');
-        }
-
+        // Simpan ke Firestore
         await db.collection('delivery_planning').add({ 
-            shipmentNo: shipmentNo || "-", 
-            customer: customer, 
-            customerPhone: phone || "-", 
-            destination: destination, 
+            shipmentNo: formValues.ship, // Input manual user
+            customer: formValues.cust, 
+            customerPhone: formValues.wa || "-", 
+            destination: formValues.dest,
+            estimatedDistance: parseFloat(formValues.dist),
+            estimatedDuration: parseFloat(formValues.dur),
             status: 'pending', 
             vendor: '', 
             createdAt: firebase.firestore.FieldValue.serverTimestamp() 
         });
         
-        Swal.fire('Sukses', 'Plan berhasil dibuat', 'success');
+        Swal.fire('Sukses', `Order ${formValues.ship} berhasil dibuat.`, 'success');
         loadPlanningData();
     }
 };
-
 window.moveStatus = async function(id, next) {
     if(next === 'scheduled') {
         const vOptions = await getOptionsHTML('master_vendors');
@@ -2904,4 +3025,136 @@ async function sendAiMessage() {
         `;
     }
     msgArea.scrollTop = msgArea.scrollHeight;
+}
+// ==========================================
+// FITUR: MONITOR CUACA MULTI-PORT
+// ==========================================
+let currentPortListener = null; // Menyimpan listener agar bisa dimatikan saat ganti tombol
+
+function initWeatherSystem() {
+    // 1. Render Tombol Pilihan Pelabuhan
+    const mapSection = document.getElementById('view-gps');
+    if (!mapSection) return;
+
+    // Cek apakah tombol sudah ada biar gak dobel
+    if (!document.getElementById('port-selector')) {
+        const selectorHTML = `
+            <div id="port-selector" class="absolute top-28 left-1/2 -translate-x-1/2 z-[900] flex flex-row gap-2">
+                <button onclick="switchPort('merak')" class="bg-white/90 backdrop-blur text-slate-700 px-4 py-2 rounded-full shadow-lg border border-slate-200 font-bold text-xs hover:bg-blue-50 transition hover:scale-105 active:scale-95 flex items-center gap-2">
+                    <span>🚢</span> Merak
+                </button>
+                <button onclick="switchPort('priok')" class="bg-white/90 backdrop-blur text-slate-700 px-4 py-2 rounded-full shadow-lg border border-slate-200 font-bold text-xs hover:bg-blue-50 transition hover:scale-105 active:scale-95 flex items-center gap-2">
+                    <span>⚓</span> Priok
+                </button>
+                <button onclick="switchPort('ketapang')" class="bg-white/90 backdrop-blur text-slate-700 px-4 py-2 rounded-full shadow-lg border border-slate-200 font-bold text-xs hover:bg-blue-50 transition hover:scale-105 active:scale-95 flex items-center gap-2">
+                    <span>⛴️</span> Bali
+                </button>
+            </div>
+        `;
+        mapSection.insertAdjacentHTML('beforeend', selectorHTML);
+    }
+
+    // 2. Load Default (Merak)
+    switchPort('merak');
+}
+
+window.switchPort = function(portId) {
+    // Matikan listener sebelumnya (hemat memori)
+    if (currentPortListener) currentPortListener(); 
+
+    // Aktifkan listener baru untuk pelabuhan yang dipilih
+    currentPortListener = db.collection('weather_alerts').doc(portId)
+        .onSnapshot((doc) => {
+            if (doc.exists) {
+                renderWeatherBanner(doc.data());
+            } else {
+                // Jika data belum ada (misal bot belum jalan)
+                renderWeatherBanner({
+                    status: 'Loading...', 
+                    waveHeight: '-', 
+                    pelabuhan: portId.toUpperCase()
+                });
+            }
+        });
+};
+
+function renderWeatherBanner(data) {
+    const mapSection = document.getElementById('view-gps');
+    
+    // Hapus banner lama
+    const oldBanner = document.getElementById('weather-warning-banner');
+    if (oldBanner) oldBanner.remove();
+
+    // Tentukan Warna
+    let colorClass = 'bg-emerald-500'; 
+    let icon = 'fa-check-circle';
+    
+    if (data.status === 'Waspada') { colorClass = 'bg-amber-500'; icon = 'fa-exclamation-triangle'; }
+    if (data.status === 'Bahaya') { colorClass = 'bg-red-600 animate-pulse'; icon = 'fa-skull-crossbones'; }
+
+    // HTML Banner (Posisi di Tengah Atas)
+    const bannerHTML = `
+        <div id="weather-warning-banner" class="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] ${colorClass} text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 transition-all duration-500 border-2 border-white/20 animate-fade-in">
+            <i class="fa ${icon} text-3xl"></i>
+            <div>
+                <div class="text-[10px] uppercase font-bold opacity-80 tracking-widest text-white/90">${data.pelabuhan || 'Pelabuhan'}</div>
+                <div class="font-bold text-sm">
+                    Status: <span class="underline">${data.status}</span> • Ombak: ${data.waveHeight}
+                </div>
+                <div class="text-[9px] mt-0.5 opacity-80">Last Check: ${data.lastCheck || '-'}</div>
+            </div>
+        </div>
+    `;
+    mapSection.insertAdjacentHTML('beforeend', bannerHTML);
+}
+// ==========================================
+// MODULE: SMART ROUTE (OSRM & NOMINATIM)
+// ==========================================
+
+// 📍 KOORDINAT GUDANG UTAMA (Contoh: Tanjung Priok, Jakarta)
+// Silakan ganti dengan koordinat gudang aslimu jika mau.
+const WAREHOUSE_LOC = { lat: -6.132055, lng: 106.871483 }; 
+
+// 1. Fungsi Cari Koordinat dari Nama Kota (Geocoding)
+async function getCoordinates(cityName) {
+    try {
+        // Pakai API Nominatim (Gratis)
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${cityName}, Indonesia`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        } else {
+            return null;
+        }
+    } catch (e) {
+        console.error("Geocoding Error:", e);
+        return null;
+    }
+}
+
+// 2. Fungsi Hitung Jarak & Waktu (Routing)
+async function calculateRouteOSRM(start, end) {
+    try {
+        // Format OSRM: Lng,Lat (Kebalik dari Google Maps)
+        const startCoord = `${start.lng},${start.lat}`;
+        const endCoord = `${end.lng},${end.lat}`;
+        
+        const url = `https://router.project-osrm.org/route/v1/driving/${startCoord};${endCoord}?overview=false`;
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.routes && data.routes.length > 0) {
+            const route = data.routes[0];
+            const distanceKM = (route.distance / 1000).toFixed(1); // Meter ke KM
+            const durationHour = (route.duration / 3600).toFixed(1); // Detik ke Jam
+            return { distanceKM, durationHour };
+        }
+        return null;
+    } catch (e) {
+        console.error("OSRM Error:", e);
+        return null;
+    }
 }
