@@ -5,12 +5,20 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import google.generativeai as genai
 import json
+import os
+import datetime
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # ==========================================
 # 1. KONFIGURASI GEMINI
 # ==========================================
 # 🔴 PASTE API KEY GEMINI KAMU DI SINI (JANGAN SALAH COPAS!)
-GEMINI_API_KEY = "AIzaSyB1eDaGPUvFy3DgUNDznRhm5oKzHU7uBAQ"
+GEMINI_API_KEY = "AIzaSyC2t4yx64PIvQxZCss1Jhpl2tS7fxjTY3c"
 
 # Pastikan file json Firebase tetap ada di folder ini
 FIREBASE_KEY_FILE = "serviceAccountKey.json"
@@ -137,5 +145,95 @@ def whatsapp_webhook():
         "reply": balasan
     }), 200
 
+# ==========================================
+# 5. FITUR DIARIUM: BMKG MULTI-PORT SCRAPER
+# ==========================================
+def diarium_scrape_bmkg():
+    print("🌊 [DIARIUM] Memulai Cek Ombak 3 Pelabuhan Sekaligus...")
+    
+    chrome_options = Options()
+    chrome_options.add_argument("--headless") # Mode senyap aktif
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    
+    # DAFTAR PELABUHAN & KATA KUNCI PERAIRANNYA
+    # Format: "ID_DATABASE": {"nama": "NAMA_TAMPILAN", "keywords": ["KATA_KUNCI_BMKG"]}
+    target_ports = {
+        "merak": {
+            "nama": "Merak - Bakauheni",
+            "keywords": ["Selat Sunda"]
+        },
+        "priok": {
+            "nama": "Tanjung Priok (Teluk Jakarta)",
+            "keywords": ["Teluk Jakarta", "Laut Jawa bagian barat"]
+        },
+        "ketapang": {
+            "nama": "Ketapang - Gilimanuk",
+            "keywords": ["Selat Bali"]
+        }
+    }
+
+    try:
+        driver.get("https://maritim.bmkg.go.id/cuaca/peringatan/gelombang")
+        driver.implicitly_wait(15)
+        
+        # Ambil seluruh teks di halaman
+        page_text = driver.find_element(By.TAG_NAME, "body").text
+        
+        # LOOPING: Cek satu per satu pelabuhan
+        for port_id, data in target_ports.items():
+            status = "Aman"
+            wave = "0.5 - 1.25 m (Rendah)"
+            is_danger = False
+            
+            # Cek apakah kata kunci perairan ini muncul di area "Gelombang Tinggi"?
+            # (Logika sederhana: cari keyword di halaman)
+            found_keyword = any(k in page_text for k in data['keywords'])
+            
+            if found_keyword:
+                # Jika nama perairannya disebut, cek level bahayanya
+                if "Gelombang Tinggi (2.50 - 4.0 m)" in page_text:
+                    status = "Bahaya"
+                    wave = "2.50 - 4.0 m (Tinggi)"
+                    is_danger = True
+                elif "Gelombang Sedang (1.25 - 2.50 m)" in page_text:
+                    status = "Waspada"
+                    wave = "1.25 - 2.50 m (Sedang)"
+                    is_danger = True
+            
+            # Simpan ke Firebase (Dokumen terpisah tiap pelabuhan)
+            doc_data = {
+                "pelabuhan": data['nama'],
+                "status": status,
+                "waveHeight": wave,
+                "isDanger": is_danger,
+                "timestamp": datetime.datetime.now(),
+                "lastCheck": datetime.datetime.now().strftime("%H:%M WIB")
+            }
+            db.collection('weather_alerts').document(port_id).set(doc_data)
+            print(f"   ⚓ {data['nama']} -> {status}")
+
+        print("✅ [DIARIUM] Semua pelabuhan berhasil dicek!")
+
+    except Exception as e:
+        print(f"❌ [DIARIUM] Error: {e}")
+    finally:
+        driver.quit()
+
+# ... (Kode scheduler di bawah tetap sama) ...
+# ==========================================
+# 6. JALANKAN SCHEDULER & FLASK APP
+# ==========================================
+# Atur cron job: Jalan otomatis setiap jam 06:00 pagi WIB
+scheduler = BackgroundScheduler()
+scheduler.add_job(diarium_scrape_bmkg, 'interval', hours=1)
+scheduler.start()
+
 if __name__ == '__main__':
+    # UNTUK TES SAAT INI (KITA PAKSA JALAN SEKALI SAAT SERVER NYALA)
+    diarium_scrape_bmkg() 
+    
+    # Jalankan Server Utama
     app.run(port=5000, debug=True)
